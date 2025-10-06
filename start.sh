@@ -32,7 +32,7 @@ echo "Installing server (5/6)"
 sleep 1
 mkdir AI
 cd AI
-curl -o https://raw.githubusercontent.com/Niam3231/local-ai/main/index.php
+curl -o index.php https://raw.githubusercontent.com/Niam3231/local-ai/main/index.php
 clear
 echo "Starting php server (6/6)"
 echo "Go to localhost:3231 to talk to AI."
