@@ -1,6 +1,5 @@
 <?php
 session_start();
-// You can add/remove models here
 $AVAILABLE_MODELS = [
     'gemma3:4b' => 'Gemma 3 4B - Smartest',
     'qwen3:1.7b' => 'Qwen 3 1.7b - Fast-Smart',
@@ -10,7 +9,6 @@ $AVAILABLE_MODELS = [
 
 $OLLAMA_URL = 'http://localhost:11434/api/chat';
 
-// Model selection
 if (!isset($_SESSION['model'])) {
     $_SESSION['model'] = 'gemma3:4b';
 }
@@ -23,21 +21,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_GET['set_model'])) {
     echo json_encode(['ok' => true, 'model' => $_SESSION['model']]);
     exit;
 }
-
-// Start new conversation (AJAX)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_GET['new'])) {
     $_SESSION['conversation'] = [];
     header('Content-Type: application/json; charset=utf-8');
     echo json_encode(['cleared' => true]);
     exit;
 }
-
-// Initialize conversation
 if (!isset($_SESSION['conversation'])) {
     $_SESSION['conversation'] = [];
 }
-
-// Handle POST requests (send message)
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     header('Content-Type: text/event-stream; charset=utf-8');
     header('Cache-Control: no-cache');
@@ -128,25 +120,23 @@ body, #chat-container {
     z-index: 1;
     box-sizing: border-box;
 }
-
-/* HEADER IMPROVED FOR PC */
 #chat-header {
     background: #222635;
-    padding: 1.25vh 2vw;
-    font-size: clamp(1.05em, 1.1vw + 1em, 1.3em);
+    padding: 0.7em 2vw;
+    font-size: clamp(1.03em, 1vw + 1em, 1.13em);
     font-weight: bold;
     border-bottom: 1px solid #24272d;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    min-height: 48px;
+    min-height: 42px;
     width: 100vw;
     box-sizing: border-box;
     letter-spacing: 0.02em;
 }
 #chat-header .brand {
     color: #68a3ff;
-    font-size: 0.7em;
+    font-size: 0.87em;
     margin-left: 8px;
 }
 #chat-header .header-controls {
@@ -159,9 +149,9 @@ body, #chat-container {
     color: #fff;
     border: none;
     border-radius: 9px;
-    font-size: 1em;
+    font-size: 0.92em;
     font-weight: 500;
-    padding: 0.38em 1.4em;
+    padding: 0.33em 1.18em;
     cursor: pointer;
     transition: background 0.18s;
     box-shadow: 0 1px 2px #0002;
@@ -174,9 +164,9 @@ body, #chat-container {
     color: #68a3ff;
     border: 1.5px solid #68a3ff;
     border-radius: 7px;
-    font-size: 1em;
+    font-size: 0.92em;
     font-weight: 600;
-    padding: 0.33em 1em;
+    padding: 0.22em 0.8em;
     outline: none;
     margin-right: 1em;
     margin-left: 0.4em;
@@ -207,7 +197,7 @@ body, #chat-container {
     width: fit-content;
     padding: 2.5vh 3vw;
     border-radius: 18px;
-    font-size: min(4.5vw, 1.15em);
+    font-size: min(4.5vw, 1.09em);
     line-height: 1.6;
     word-break: break-word;
     white-space: pre-wrap;
@@ -219,6 +209,49 @@ body, #chat-container {
 .msg.user .bubble {
     background: linear-gradient(120deg, #2563eb 70%, #3683ff);
     color: #fff;
+}
+.reasoning-anim {
+    color: #fffb;
+    background: #232945;
+    border-radius: 12px;
+    padding: 0.6em 1.1em;
+    margin: 0.3em 0;
+    font-size: 1em;
+    font-family: 'Fira Mono', 'Consolas', monospace;
+    box-shadow: 0 2px 8px #0e2568a0;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.75em;
+    letter-spacing: 0.04em;
+    border-left: 3px solid #68a3ff;
+    border-right: 3px solid #68a3ff;
+    transition: background 0.3s;
+    animation: reasoning-glow 1.3s infinite alternate;
+}
+@keyframes reasoning-glow {
+    0% { box-shadow: 0 2px 8px #0e2568a0; }
+    100% { box-shadow: 0 2px 22px #68a3ff77; background: #24325e; }
+}
+.reasoning-anim .reason-icon {
+    font-size: 1.14em;
+    color: #68a3ff;
+    animation: reasoning-icon-bounce 1.4s infinite alternate;
+}
+@keyframes reasoning-icon-bounce {
+    0% { transform: scale(1); }
+    40% { transform: scale(1.17); }
+    100% { transform: scale(1); }
+}
+.reasoning-anim .reason-dots {
+    display: inline-block;
+    font-size: 1.2em;
+    letter-spacing: 0.18em;
+    color: #68a3ff;
+    animation: reasoning-dot-blink 1.1s infinite;
+}
+@keyframes reasoning-dot-blink {
+    0%,100% { opacity: 0.7; }
+    50% { opacity: 1; }
 }
 
 #input-area {
@@ -308,6 +341,10 @@ body, #chat-container {
     #msg { font-size: min(5vw,1em); padding: 1.2vh 2vw;}
     #send-btn, #new-btn, #model-select { padding: 0 4vw; font-size: min(5vw,1em);}
     #model-select { margin-right: 0.5em; }
+    .reasoning-anim {
+        font-size: 0.97em;
+        padding: 0.54em 0.7em;
+    }
 }
 @media (max-width: 350px) {
     #chat-header, #input-area { padding: 1vw; }
@@ -396,10 +433,8 @@ function addMsg(role, text) {
 }
 
 function addThinkingAnimation(bubble) {
-    // "Thinking" animation with animated dots, always on one line
     bubble.innerHTML = `<span id="thinking-anim">Thinking<span class="dot">.</span><span class="dot">.</span><span class="dot">.</span></span>`;
     chatBox.scrollTop = chatBox.scrollHeight;
-    // Animate the dots for a classic "..." effect
     const dots = bubble.querySelectorAll('.dot');
     let dotCount = 0;
     if (thinkingAnimInterval) clearInterval(thinkingAnimInterval);
@@ -408,15 +443,30 @@ function addThinkingAnimation(bubble) {
         dots.forEach((d, i) => {
             d.style.visibility = i < dotCount ? 'visible' : 'hidden';
         });
-        // Always keep "Thinking" and at least 1 dot visible
         if (dotCount === 0) dots.forEach((d,i)=>d.style.visibility = (i===0 ? 'visible':'hidden'));
     }, 380);
-    // Return a function to remove the animation and clear interval
     return () => {
         bubble.innerHTML = '';
         if (thinkingAnimInterval) clearInterval(thinkingAnimInterval);
         thinkingAnimInterval = null;
     };
+}
+
+// Reasoning animation for <think>...</think> region
+function addReasoningAnimation(parent, innerText = '') {
+    // Remove any existing
+    let old = parent.querySelector('.reasoning-anim');
+    if (old) parent.removeChild(old);
+    const anim = document.createElement('span');
+    anim.className = 'reasoning-anim';
+    anim.innerHTML = `<span class="reason-icon">🧠</span><span>${innerText || 'Reasoning...'}</span><span class="reason-dots">...</span>`;
+    parent.appendChild(anim);
+    chatBox.scrollTop = chatBox.scrollHeight;
+    return anim;
+}
+function removeReasoningAnimation(parent) {
+    let old = parent.querySelector('.reasoning-anim');
+    if (old) parent.removeChild(old);
 }
 
 async function send() {
@@ -434,6 +484,7 @@ async function send() {
     let removeThinking = addThinkingAnimation(bubble);
     let gotToken = false;
     let assistantText = '';
+    let reasoningActive = false; // Are we inside <think> ... </think>?
 
     const res = await fetch('', {
         method: 'POST',
@@ -444,6 +495,7 @@ async function send() {
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
+    let reasoningBuffer = '';
 
     while (true) {
         const {done, value} = await reader.read();
@@ -473,14 +525,42 @@ async function send() {
                     removeThinking();
                     gotToken = true;
                 }
-                assistantText += token;
-                bubble.textContent = assistantText;
+
+                // Reasoning detection and animation
+                if (!reasoningActive && token.includes('<think>')) {
+                    reasoningActive = true;
+                    reasoningBuffer = '';
+                    // Remove <think> from token, show reasoning anim
+                    token = token.replace('<think>', '');
+                    removeReasoningAnimation(bubble);
+                    addReasoningAnimation(bubble, 'Reasoning...');
+                }
+                if (reasoningActive) {
+                    // While inside <think> ... </think>, accumulate and show in reasoning anim
+                    if (token.includes('</think>')) {
+                        // End reasoning: flush buffer, remove anim, append reasoning as a styled block
+                        token = token.replace('</think>', '');
+                        let reasonAnim = bubble.querySelector('.reasoning-anim');
+                        if (reasonAnim) reasonAnim.innerHTML = `<span class="reason-icon">🧠</span><span>${reasoningBuffer.trim()}</span>`;
+                        setTimeout(() => removeReasoningAnimation(bubble), 700); // fade away after a bit
+                        bubble.textContent += '';
+                        reasoningActive = false;
+                        reasoningBuffer = '';
+                        bubble.textContent += token;
+                    } else {
+                        // Add to buffer, update reasoning animation text
+                        reasoningBuffer += token;
+                        let reasonAnim = bubble.querySelector('.reasoning-anim');
+                        if (reasonAnim) reasonAnim.innerHTML = `<span class="reason-icon">🧠</span><span>${reasoningBuffer.trim() || 'Reasoning...'}</span><span class="reason-dots">...</span>`;
+                    }
+                } else {
+                    bubble.textContent += token;
+                }
                 chatBox.scrollTop = chatBox.scrollHeight;
             } else if (eventType === 'done') {
                 sending = false;
                 msgInput.disabled = false;
                 msgInput.focus();
-                // Save assistant message in conversation
                 conversation.push({role: 'assistant', content: assistantText});
             } else if (eventType === 'error') {
                 sending = false;
@@ -491,12 +571,10 @@ async function send() {
             }
         }
     }
-    // If no token ever arrived, remove animation on completion (e.g., error)
     if (!gotToken) removeThinking();
 }
 
 function startNewChat() {
-    // Reset conversation and server-side session via AJAX
     fetch('?new=1', {method: 'POST'})
       .then(() => {
           conversation = [];
