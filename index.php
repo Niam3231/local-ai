@@ -3,7 +3,7 @@ session_start();
 // You can add/remove models here
 $AVAILABLE_MODELS = [
     'gemma3:4b' => 'Gemma 3 4B - Smartest',
-    'qwen3:1.7b' => 'Qwen 3 1.7b - Fast-Smart'
+    'qwen3:1.7b' => 'Qwen 3 1.7b - Fast-Smart',
     'gemma3:270m' => 'Gemma 3 270m - Fastest',
     // Add more as needed...
 ];
