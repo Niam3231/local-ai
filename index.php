@@ -247,6 +247,22 @@ function sendMessage(){
     msgInput.focus();
   });
 }
+evtSource.addEventListener('token', e => {
+    let token = e.data;
+    try {
+        // Decode JSON string from server
+        token = JSON.parse(token);
+    } catch (err) {
+        // fallback: leave as is
+    }
+
+    // Remove <think> tags if present
+    token = token.replace(/<\/?think>/g, '');
+
+    // Append cleaned token
+    bubble.textContent += token;
+    chatBox.scrollTop = chatBox.scrollHeight;
+});
 
 // Handle Enter key
 msgInput.addEventListener('keydown',function(e){
