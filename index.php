@@ -191,128 +191,85 @@ body,#chat-container{display:flex;flex-direction:column;min-height:100dvh;width:
     <button id="send-btn" type="submit">Send</button>
   </form>
 </div><script>
-const CATALOG = <?php echo json_encode($catalog, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES); ?>;
-let currentModel = <?php echo json_encode($_SESSION['model']); ?>;
-const chatBox = document.getElementById('chat-box');
-const msgInput = document.getElementById('msg');
-const modelSelect = document.getElementById('model-select');
-const currentModelLabel = document.getElementById('current-model-label');
+let conversation = [];
 
-// Populate model dropdown
-function populateModelSelect(){
-  modelSelect.innerHTML='';
-  for(const m of CATALOG){
-    const opt=document.createElement('option');
-    opt.value=m.id;
-    opt.textContent=m.name+' — '+m.descr;
-    opt.title=`${m.id} • Size: ${m.size}`;
-    if(m.id===currentModel) opt.selected=true;
-    modelSelect.appendChild(opt);
-  }
-  updateCurrentModelLabel();
-}
-
-function updateCurrentModelLabel(){
-  const m=CATALOG.find(x=>x.id===currentModel);
-  currentModelLabel.textContent=m?`${m.name} — ${m.descr}`:'';
-}
-
-modelSelect.addEventListener('change', async function(){
-  const selected=modelSelect.value;
-  if(selected===currentModel) return;
-  const form=new FormData(); form.append('model',selected);
-  await fetch('?set_model=1',{method:'POST',body:form});
-  currentModel=selected;
-  updateCurrentModelLabel();
-});
-
-populateModelSelect();
-
-// Conversation functions
-let conversation=[];
 function renderConversation(){
-  chatBox.innerHTML='';
-  for(const m of conversation)addMsg(m.role,m.content);
-  chatBox.scrollTop=chatBox.scrollHeight;
+    chatBox.innerHTML='';
+    for(const m of conversation) addMsg(m.role,m.content);
+    chatBox.scrollTop = chatBox.scrollHeight;
 }
 
 function addMsg(role,text){
-  const msgDiv=document.createElement('div');
-  msgDiv.className='msg '+role;
+    const msgDiv = document.createElement('div');
+    msgDiv.className = 'msg '+role;
 
-  // Detect reasoning tags
-  if(text.includes('<think>')){
-    const parts=text.split(/<think>|<\/think>/g);
-    for(const p of parts){
-      if(!p) continue;
-      if(p.trim() === p) {
-        const span=document.createElement('span');
-        span.className='reasoning-anim';
-        span.innerHTML=`<span class="reason-icon">💭</span> ${p.trim()}`;
-        msgDiv.appendChild(span);
-      } else {
-        const bubble=document.createElement('div');
-        bubble.className='bubble';
-        bubble.textContent=p;
-        msgDiv.appendChild(bubble);
-      }
+    // Handle <think> reasoning blocks
+    const parts = text.split(/<think>|<\/think>/);
+    parts.forEach((p,i)=>{
+        if(i%2===1){ // reasoning block
+            const span = document.createElement('span');
+            span.className = 'reasoning-anim';
+            span.innerHTML = `<span class="reason-icon">🧠</span> ${p}`;
+            msgDiv.appendChild(span);
+        } else if(p.trim()!==''){
+            const bubble = document.createElement('div');
+            bubble.className='bubble';
+            bubble.textContent = p;
+            msgDiv.appendChild(bubble);
+        }
+    });
+
+    chatBox.appendChild(msgDiv);
+    chatBox.scrollTop = chatBox.scrollHeight;
+    return msgDiv;
+}
+
+async function send(){
+    const msg = msgInput.value.trim();
+    if(!msg) return;
+    conversation.push({role:'user',content:msg});
+    addMsg('user',msg);
+    msgInput.value='';
+    msgInput.disabled=true;
+
+    try {
+        const res = await fetch('', {
+            method:'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({message: msg})
+        });
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while(true){
+            const {done,value} = await reader.read();
+            if(done) break;
+            buffer += decoder.decode(value,{stream:true});
+            let lines = buffer.split("\n\n");
+            buffer = lines.pop()||'';
+            for(const line of lines){
+                if(line.startsWith("event: token")){
+                    let data=line.split("data:")[1].trim();
+                    let text='';
+                    try{text=JSON.parse(data);}catch{}
+                    conversation.push({role:'assistant',content:text});
+                    addMsg('assistant',text);
+                }
+            }
+        }
+    } catch(e){
+        addMsg('assistant','Error sending message: '+e.message);
     }
-  } else {
-    const bubble=document.createElement('div');
-    bubble.className='bubble';
-    bubble.textContent=text;
-    msgDiv.appendChild(bubble);
-  }
 
-  chatBox.appendChild(msgDiv);
-  chatBox.scrollTop=chatBox.scrollHeight;
-  return msgDiv;
+    msgInput.disabled=false;
+    msgInput.focus();
 }
 
-function startNewChat(){
-  fetch('?new=1',{method:'POST'}).then(()=>{conversation=[];chatBox.innerHTML='';msgInput.value='';msgInput.disabled=false;msgInput.focus();});
-}
+msgInput.addEventListener('keydown', function(e){
+    if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); send(); }
+});
 
-// Send message
-function send(){
-  const msg=msgInput.value.trim();
-  if(!msg) return;
-  conversation.push({role:'user',content:msg});
-  addMsg('user',msg);
-  msgInput.value=''; msgInput.disabled=true;
-
-  const evtSource = new EventSourcePolyfill('?',{method:'POST',body:JSON.stringify({message:msg})});
-  evtSource.onmessage=function(e){};
-  // Using fetch with ReadableStream to handle server-sent events
-  fetch('?',{method:'POST',body:JSON.stringify({message:msg})})
-    .then(r=>{const reader=r.body.getReader(); const decoder=new TextDecoder(); return reader.read().then(function process({done,value}){if(done) return; let chunk=decoder.decode(value); chunk.split("\n\n").forEach(line=>{if(!line) return; if(line.startsWith("event: token")){let data=line.split("data:")[1]; let text=''; try{text=JSON.parse(data);}catch(e){} addMsg('assistant',text); } }); return reader.read().then(process);});});
-
-  msgInput.disabled=false; msgInput.focus();
-}
-
-msgInput.addEventListener('keydown',function(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send();}});
-
-// Initial render
-window.onload=()=>{renderConversation();msgInput.focus();};
+window.onload = ()=>{ renderConversation(); msgInput.focus(); };
 </script></body>
 </html>
-```✅ Fixes applied:
-
-1. Models now merge correctly with models.json.
-
-
-2. reasoning <think> blocks are rendered as a special animation.
-
-
-3. Messages are JSON-decoded so escaped quotes and \n display correctly.
-
-
-4. Conversation scroll, new chat, and model switching fully functional.
-
-
-
-
----
-
-If you want, I can also simplify the streaming code so it directly handles the server-sent tokens without needing complex ReadableStream logic, which should make responses instantaneous and less buggy. Do you want me to do that next?
-
