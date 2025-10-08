@@ -1,96 +1,74 @@
 <?php
 session_start();
 
-// === CONFIG ===
+// ----------------- CONFIG -----------------
 $models_file = __DIR__ . '/models.json';
 $OLLAMA_URL = 'http://localhost:11434/api/chat';
 
-// === HARD-CODED MODEL METADATA ===
+// ----------------- KNOWN MODELS METADATA -----------------
+// Edit/add descriptions here as you get new model IDs
 $MODEL_INFO = [
-    'gemma3:270m' => [
-        'name' => 'Gemma 3 270m',
-        'descr' => "With its low parameters it very dumb. But its very fast, even on phones it generates at the speed of ChatGPT. You could call it a RageBait-AI because it's very dumb.",
-        'size' => '292 MB'
-    ],
-    'qwen3:0.6b' => [
-        'name' => 'Qwen 3 0.6b',
-        'descr' => "With its low parameters it generates fast. But because of its reasoning capability it's not dumb and can detect differences between different subjects.",
-        'size' => '523 MB'
-    ],
-    'deepseek-r1:1.5b' => [
-        'name' => 'DeepSeek R1 1.5b',
-        'descr' => "For low-end Laptops/PC even phones. It's a bit smarter than Qwen 3 0.6 and slower. But can also reason.",
-        'size' => '1.1 GB'
-    ],
-    'gemma3:4b' => [
-        'name' => 'Gemma 3 4b',
-        'descr' => "Despite its high parameters for low-end Laptops/PC or phones, it's very capable to run on a single GPU, so it could be faster than other models of the same smartness.",
-        'size' => '3.3 GB'
-    ],
-    'deepseek-r1:7b' => [
-        'name' => 'DeepSeek R1 7b',
-        'descr' => "A model for mid-end Laptops or even very powerful phones. It's smart and can reason.",
-        'size' => '4.7 GB'
-    ],
-    'deepseek-r1:14b' => [
-        'name' => 'DeepSeek R1 14b',
-        'descr' => "For mid/high-end Laptops or PCs. Only the most recent and expensive phones can run it. It can reason and is smart. But if you have the wrong hardware this will probably not even load because of lack of memory or VRAM.",
-        'size' => '9.0 GB'
-    ],
-    'deepseek-r1:32b' => [
-        'name' => 'DeepSeek R1 32b',
-        'descr' => "Needs a high-end PC with a powerful GPU. Phones and (almost any) laptops cannot run this. It's a very smart model. You probably won't even need this.",
-        'size' => '20 GB'
-    ]
+    'gemma3:270m'     => ['name'=>'Gemma 3 270m', 'descr'=>"With its low parameters it very dumb. But its very fast, even on phones it generates at the speed of ChatGPT. You could call it a RageBait-AI because it's very dumb.", 'size'=>'292 MB'],
+    'qwen3:0.6b'      => ['name'=>'Qwen 3 0.6b', 'descr'=>"With its low parameters it generates fast. But because of its reasoning capability it's not dumb and can detect differences between different subjects.", 'size'=>'523 MB'],
+    'deepseek-r1:1.5b'=> ['name'=>'DeepSeek R1 1.5b', 'descr'=>"For low-end Laptops/PC even phones. It's a bit smarter than Qwen 3 0.6 and slower. But can also reason.", 'size'=>'1.1 GB'],
+    'gemma3:4b'       => ['name'=>'Gemma 3 4b', 'descr'=>"Despite its high parameters it can run on a single GPU in many configs—very capable.", 'size'=>'3.3 GB'],
+    'deepseek-r1:7b'  => ['name'=>'DeepSeek R1 7b', 'descr'=>"For mid-end laptops / powerful phones. Smart and can reason.", 'size'=>'4.7 GB'],
+    'deepseek-r1:14b' => ['name'=>'DeepSeek R1 14b', 'descr'=>"For mid/high-end machines. Will need memory/VRAM.", 'size'=>'9.0 GB'],
+    'deepseek-r1:32b' => ['name'=>'DeepSeek R1 32b', 'descr'=>"Very large model — needs high-end GPU. Most people don't need this.", 'size'=>'20 GB'],
 ];
 
-// === LOAD CATALOG ===
+// ----------------- READ & ENRICH models.json -----------------
 $catalog = [];
 if (file_exists($models_file)) {
-    $raw = trim(file_get_contents($models_file), "\xEF\xBB\xBF"); // remove BOM if present
+    $raw = file_get_contents($models_file);
+    // remove possible BOM and control whitespace
+    $raw = preg_replace('/^\xEF\xBB\xBF/', '', $raw);
+    $raw = trim($raw);
     $decoded = json_decode($raw, true);
     if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
         foreach ($decoded as $m) {
             if (!empty($m['id'])) {
                 $id = $m['id'];
-                $info = $MODEL_INFO[$id] ?? ['name'=>$id,'descr'=>'No description available.','size'=>'Unknown'];
-                $catalog[] = array_merge(['id'=>$id], $info);
+                $info = $MODEL_INFO[$id] ?? ['name' => $id, 'descr' => 'No description available.', 'size' => 'Unknown'];
+                $catalog[] = array_merge(['id' => $id], $info);
             }
         }
+    } else {
+        error_log("models.json parse error: " . json_last_error_msg());
     }
+} else {
+    error_log("models.json not found at $models_file");
 }
 
-// Fallback
+// Fallback if nothing found (should rarely happen)
 if (count($catalog) === 0) {
     $catalog = [
         ['id'=>'gemma3:4b','name'=>'Gemma 3 4b','descr'=>'Smart and capable','size'=>'3.3 GB'],
         ['id'=>'qwen3:0.6b','name'=>'Qwen 3 0.6b','descr'=>'Fast and reasonable','size'=>'523 MB'],
-        ['id'=>'gemma3:270m','name'=>'Gemma 3 270m','descr'=>'Very fast but very dumb','size'=>'292 MB']
+        ['id'=>'gemma3:270m','name'=>'Gemma 3 270m','descr'=>'Very fast but very dumb','size'=>'292 MB'],
     ];
 }
 
-// Available models map for server-side validation
+// server-side quick lookup for validation
 $AVAILABLE_MODELS = [];
-foreach ($catalog as $m) $AVAILABLE_MODELS[$m['id']] = $m['name'].' - '.$m['descr'];
+foreach ($catalog as $m) $AVAILABLE_MODELS[$m['id']] = $m['name'] . ' - ' . $m['descr'];
 
-// Default session model
-if (!isset($_SESSION['model'])) $_SESSION['model'] = array_key_first($AVAILABLE_MODELS) ?: 'gemma3:4b';
-
-// Conversation
+// ensure defaults
+if (!isset($_SESSION['model'])) $_SESSION['model'] = array_key_first($AVAILABLE_MODELS) ?: $catalog[0]['id'];
 if (!isset($_SESSION['conversation'])) $_SESSION['conversation'] = [];
 
-// === ENDPOINTS ===
-if ($_SERVER['REQUEST_METHOD']==='POST') {
-    // Set model
+// ----------------- ENDPOINTS -----------------
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // 1) set model
     if (isset($_GET['set_model'])) {
         $model = $_POST['model'] ?? array_key_first($AVAILABLE_MODELS);
         if (isset($AVAILABLE_MODELS[$model])) $_SESSION['model'] = $model;
         header('Content-Type: application/json; charset=utf-8');
-        echo json_encode(['ok'=>true,'model'=>$_SESSION['model']]);
+        echo json_encode(['ok'=>true, 'model'=>$_SESSION['model']]);
         exit;
     }
 
-    // New conversation
+    // 2) new conversation
     if (isset($_GET['new'])) {
         $_SESSION['conversation'] = [];
         header('Content-Type: application/json; charset=utf-8');
@@ -98,178 +76,364 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
         exit;
     }
 
-    // Stream chat
+    // 3) append assistant (client should call this after it finishes streaming assistant tokens)
+    if (isset($_GET['append_assistant'])) {
+        $input = json_decode(file_get_contents('php://input'), true);
+        $content = trim($input['content'] ?? '');
+        if ($content !== '') {
+            $_SESSION['conversation'][] = ['role' => 'assistant', 'content' => $content];
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode(['ok'=>true]);
+            exit;
+        }
+        header('HTTP/1.1 400 Bad Request');
+        echo json_encode(['ok'=>false, 'error'=>'Empty content']);
+        exit;
+    }
+
+    // 4) main streaming chat endpoint: server acts as proxy to Ollama and forwards SSE-style events to the client
     header('Content-Type: text/event-stream; charset=utf-8');
     header('Cache-Control: no-cache');
     header('X-Accel-Buffering: no');
 
     $input = json_decode(file_get_contents('php://input'), true);
     $message = trim($input['message'] ?? '');
-    if ($message==='') {
-        echo "event: error\ndata:".json_encode(['error'=>'Empty message'])."\n\n";
-        @ob_flush(); flush(); exit;
+    if ($message === '') {
+        echo "event: error\ndata:" . json_encode(['error'=>'Empty message']) . "\n\n";
+        @ob_flush(); flush();
+        exit;
     }
 
-    $model = $_SESSION['model'] ?? array_key_first($AVAILABLE_MODELS);
-    $_SESSION['conversation'][] = ['role'=>'user','content'=>$message];
+    // append user message to server session conversation for context
+    $_SESSION['conversation'][] = ['role' => 'user', 'content' => $message];
 
-    $payload = ['model'=>$model,'messages'=>$_SESSION['conversation'],'stream'=>true];
+    $model = $_SESSION['model'] ?? array_key_first($AVAILABLE_MODELS);
+    $payload = ['model' => $model, 'messages' => $_SESSION['conversation'], 'stream' => true];
+
     $ch = curl_init($OLLAMA_URL);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, false);
     curl_setopt($ch, CURLOPT_POST, true);
     curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
     curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
-    curl_setopt($ch, CURLOPT_WRITEFUNCTION, function($ch,$chunk){
-        foreach(explode("\n",$chunk) as $line){
+    // Make sure HTTP/1.1 for chunked streaming compatibility in some environments
+    curl_setopt($ch, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
+    curl_setopt($ch, CURLOPT_WRITEFUNCTION, function($ch, $chunk) {
+        // Ollama streams lines of JSON (one per token). We forward them as event: token with JSON-encoded payload
+        // Each chunk may contain many lines or partial lines; explode on newline and forward any valid JSON token lines.
+        foreach (explode("\n", $chunk) as $line) {
             $line = trim($line);
-            if($line==='' || $line==='data: [DONE]') continue;
-            $json = json_decode($line,true);
-            if(!$json || !isset($json['message']['content'])) continue;
-            $token = $json['message']['content'];
-
-            // escape sequence cleanup
-            $token = json_decode(json_encode($token));
-
-            echo "event: token\ndata:".json_encode($token)."\n\n";
+            if ($line === '' || $line === 'data: [DONE]') continue;
+            $json = json_decode($line, true);
+            if (!$json) continue;
+            // Ollama token path may vary; we expect message.content as string
+            $token = $json['message']['content'] ?? null;
+            if ($token === null) continue;
+            // forward token as SSE event with JSON-encoded payload (client will JSON.parse)
+            echo "event: token\ndata: " . json_encode($token) . "\n\n";
             @ob_flush(); flush();
         }
         return strlen($chunk);
     });
+
     curl_exec($ch);
     curl_close($ch);
 
-    echo "event: done\ndata:{}\n\n";
+    // final event
+    echo "event: done\ndata: {}\n\n";
     @ob_flush(); flush();
     exit;
 }
-?>
-<!doctype html>
+
+// ----------------- NORMAL PAGE -----------------
+?><!doctype html>
 <html>
 <head>
 <meta charset="utf-8">
 <title>Ollama Live Chat</title>
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
 <style>
-html,body{margin:0;padding:0;height:100%;width:100vw;font-family:'Segoe UI',Arial,sans-serif;color:#f3f4fa;background:#101217;overflow:hidden;}
-body,#chat-container{display:flex;flex-direction:column;min-height:100dvh;width:100vw;box-sizing:border-box;}
-#chat-container{flex:1;background:#181b20;position:fixed;top:0;left:0;z-index:1;width:100vw;}
-#chat-header{background:#222635;padding:.7em 2vw;font-weight:bold;border-bottom:1px solid #24272d;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.4em;min-height:42px;width:100%;}
-#chat-header .brand{color:#68a3ff;font-size:.85em;margin-left:6px;max-width:60vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;vertical-align:middle;}
-#chat-header .header-controls{display:flex;gap:.5em;align-items:center;flex-wrap:wrap;justify-content:flex-end;width:auto;}
-#input-area{display:flex;flex-direction:row;gap:2vw;padding:2.5vh 4vw 2.5vh 4vw;background:#181b20;border-top:1px solid #23283a;width:100vw;min-height:min(12vh,90px);box-sizing:border-box;}
-#msg{flex:1;background:#191c21;color:#f3f4fa;border:1px solid #23283a;border-radius:10px;font-size:min(4.2vw,1.08em);padding:1.6vh 2vw;resize:none;min-height:5vh;max-height:24vh;box-shadow:0 1px 4px #0002;outline:none;}
-#msg:focus{border:1.5px solid #68a3ff;}
-#send-btn,#new-btn{border:none;border-radius:10px;padding:0 4vw;cursor:pointer;outline:none;font-size:min(5vw,1em);}
-#send-btn{background:linear-gradient(90deg,#68a3ff 60%,#2563eb);color:#fff;font-weight:bold;min-height:5vh;}
-#send-btn:hover{background:linear-gradient(90deg,#2563eb,#68a3ff 90%);}
-#new-btn{background:#68a3ff;color:#fff;font-weight:500;}
+/* layout */
+html,body{margin:0;padding:0;height:100%;width:100vw;font-family:'Segoe UI',Arial,sans-serif;background:#101217;color:#f3f4fa;overflow:hidden;}
+#chat-container{position:fixed;inset:0;display:flex;flex-direction:column;background:#181b20;}
+/* header */
+#chat-header{background:#222635;padding:.7em 2vw;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #24272d;flex-wrap:wrap;gap:.4em;}
+#chat-header .brand{color:#68a3ff;font-size:.9em;margin-left:6px;max-width:60vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;}
+.header-controls{display:flex;gap:0.8em;align-items:center;flex-wrap:wrap;}
+#model-select{background:#191c21;color:#68a3ff;border:1.5px solid #68a3ff;border-radius:8px;padding:.28em .9em;font-weight:600;outline:none;}
+#new-btn{background:#68a3ff;color:#fff;border:none;border-radius:9px;padding:.3em .9em;cursor:pointer;}
 #new-btn:hover{background:#2563eb;}
-#model-select{background:#191c21;color:#68a3ff;border:1.5px solid #68a3ff;border-radius:7px;font-weight:600;padding:.22em .8em;outline:none;margin-right:.5em;}
-#model-select:focus{border-color:#2563eb;}
-#chat-box{flex:1;overflow-y:auto;overflow-x:hidden;padding:3vh 0 2vh 0;background:#181b20;display:flex;flex-direction:column;gap:2.5vh;width:100vw;box-sizing:border-box;}
-.msg{width:100%;display:flex;justify-content:flex-start;align-items:flex-start;}
+/* chat area */
+#chat-box{flex:1;overflow-y:auto;padding:3vh 2vw;box-sizing:border-box;display:flex;flex-direction:column;gap:1.2rem;}
+.msg{display:flex;align-items:flex-start;}
 .msg.user{justify-content:flex-end;}
-.bubble{max-width:92vw;width:fit-content;padding:2.5vh 3vw;border-radius:18px;font-size:min(4.5vw,1.09em);line-height:1.6;word-break:break-word;white-space:pre-wrap;box-shadow:0 2px 16px #0002;background:#222635;color:#f3f4fa;position:relative;}
-.msg.user .bubble{background:linear-gradient(120deg,#2563eb 70%,#3683ff);color:#fff;}
-.reasoning-anim{color:#fffb;background:#232945;border-radius:12px;padding:.6em 1.1em;font-size:1em;font-family:'Fira Mono',monospace;box-shadow:0 2px 8px #0e2568a0;display:inline-flex;align-items:center;gap:.75em;letter-spacing:.04em;border-left:3px solid #68a3ff;border-right:3px solid #68a3ff;transition:background .3s;animation:reasoning-glow 1.3s infinite alternate;}
-@keyframes reasoning-glow{0%{box-shadow:0 2px 8px #0e2568a0;}100%{box-shadow:0 2px 22px #68a3ff77;background:#24325e;}}
-.reasoning-anim .reason-icon{font-size:1.14em;color:#68a3ff;animation:reasoning-glow-icon 1.2s infinite alternate;} @keyframes reasoning-glow-icon{0%{transform:translateY(0px);}50%{transform:translateY(-2px);}100%{transform:translateY(0px);}} @media(max-width:600px){#chat-header{flex-direction:column;align-items:flex-start;gap:.6em;}#chat-header .brand{max-width:100%;white-space:normal;text-overflow:unset;}#chat-header .header-controls{width:100%;justify-content:space-between;}} </style>
-
+.bubble{max-width:92vw;background:#222635;padding:12px 16px;border-radius:14px;box-shadow:0 2px 12px #0002;white-space:pre-wrap;word-break:break-word;font-size:1rem;line-height:1.5;}
+.msg.user .bubble{background:linear-gradient(120deg,#2563eb 40%,#3683ff);color:#fff;}
+/* input */
+#input-area{display:flex;gap:12px;padding:12px 16px;border-top:1px solid #23283a;align-items:center;}
+#msg{flex:1;background:#191c21;border:1px solid #23283a;border-radius:10px;padding:10px 12px;color:#f3f4fa;min-height:44px;max-height:200px;resize:none;outline:none;}
+#send-btn{background:linear-gradient(90deg,#68a3ff 60%,#2563eb);color:#fff;border:none;padding:10px 16px;border-radius:10px;cursor:pointer;font-weight:700;}
+/* thinking / reasoning small styles */
+.reasoning-anim{display:inline-flex;align-items:center;gap:.6em;background:#232945;padding:6px 10px;border-radius:10px;border-left:3px solid #68a3ff;color:#cfe8ff;}
+@media (max-width:600px){
+  #chat-header{flex-direction:column;align-items:flex-start;}
+  #chat-header .brand{white-space:normal;max-width:100%;}
+  .header-controls{width:100%;justify-content:space-between;}
+}
+</style>
 </head>
 <body>
 <div id="chat-container">
   <div id="chat-header">
-    <span>Ollama Live Chat <span class="brand" id="current-model-label"></span></span>
-    <span class="header-controls">
+    <div><strong>Ollama Live Chat</strong> <span class="brand" id="current-model-label"></span></div>
+    <div class="header-controls">
       <select id="model-select" title="Choose model"></select>
-      <button id="new-btn" onclick="startNewChat()" title="Start a new chat">New Chat</button>
-    </span>
+      <button id="new-btn" title="Start a new chat">New Chat</button>
+    </div>
   </div>
-  <div id="chat-box"></div>
-  <form id="input-area" onsubmit="send();return false;" autocomplete="off">
-    <textarea id="msg" placeholder="Type your message..." autocomplete="off"></textarea>
+
+  <div id="chat-box" aria-live="polite"></div>
+
+  <form id="input-area" onsubmit="sendMessage(event)" autocomplete="off">
+    <textarea id="msg" placeholder="Type your message..." autocomplete="off" rows="2"></textarea>
     <button id="send-btn" type="submit">Send</button>
   </form>
-</div><script>
-let conversation = [];
+</div>
 
-function renderConversation(){
-    chatBox.innerHTML='';
-    for(const m of conversation) addMsg(m.role,m.content);
-    chatBox.scrollTop = chatBox.scrollHeight;
+<script>
+// --- server-provided data ---
+const CATALOG = <?php echo json_encode($catalog, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES); ?>;
+let currentModel = <?php echo json_encode($_SESSION['model']); ?>;
+let serverConversation = <?php echo json_encode($_SESSION['conversation'], JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES); ?> || [];
+
+// --- UI refs ---
+const chatBox = document.getElementById('chat-box');
+const msgInput = document.getElementById('msg');
+const modelSelect = document.getElementById('model-select');
+const currentModelLabel = document.getElementById('current-model-label');
+const newBtn = document.getElementById('new-btn');
+let sending = false;
+
+// --- populate models ---
+function populateModelSelect(){
+  modelSelect.innerHTML = '';
+  for (const m of CATALOG) {
+    const opt = document.createElement('option');
+    opt.value = m.id;
+    opt.textContent = m.name + ' — ' + m.descr;
+    opt.title = `${m.id} • Size: ${m.size}`;
+    if (m.id === currentModel) opt.selected = true;
+    modelSelect.appendChild(opt);
+  }
+  updateCurrentModelLabel();
 }
-
-function addMsg(role,text){
-    const msgDiv = document.createElement('div');
-    msgDiv.className = 'msg '+role;
-
-    // Handle <think> reasoning blocks
-    const parts = text.split(/<think>|<\/think>/);
-    parts.forEach((p,i)=>{
-        if(i%2===1){ // reasoning block
-            const span = document.createElement('span');
-            span.className = 'reasoning-anim';
-            span.innerHTML = `<span class="reason-icon">🧠</span> ${p}`;
-            msgDiv.appendChild(span);
-        } else if(p.trim()!==''){
-            const bubble = document.createElement('div');
-            bubble.className='bubble';
-            bubble.textContent = p;
-            msgDiv.appendChild(bubble);
-        }
-    });
-
-    chatBox.appendChild(msgDiv);
-    chatBox.scrollTop = chatBox.scrollHeight;
-    return msgDiv;
+function updateCurrentModelLabel(){
+  const m = CATALOG.find(x => x.id === currentModel);
+  currentModelLabel.textContent = m ? `${m.name} — ${m.descr}` : '';
 }
-
-async function send(){
-    const msg = msgInput.value.trim();
-    if(!msg) return;
-    conversation.push({role:'user',content:msg});
-    addMsg('user',msg);
-    msgInput.value='';
-    msgInput.disabled=true;
-
-    try {
-        const res = await fetch('', {
-            method:'POST',
-            headers: {'Content-Type':'application/json'},
-            body: JSON.stringify({message: msg})
-        });
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
-
-        while(true){
-            const {done,value} = await reader.read();
-            if(done) break;
-            buffer += decoder.decode(value,{stream:true});
-            let lines = buffer.split("\n\n");
-            buffer = lines.pop()||'';
-            for(const line of lines){
-                if(line.startsWith("event: token")){
-                    let data=line.split("data:")[1].trim();
-                    let text='';
-                    try{text=JSON.parse(data);}catch{}
-                    conversation.push({role:'assistant',content:text});
-                    addMsg('assistant',text);
-                }
-            }
-        }
-    } catch(e){
-        addMsg('assistant','Error sending message: '+e.message);
-    }
-
-    msgInput.disabled=false;
-    msgInput.focus();
-}
-
-msgInput.addEventListener('keydown', function(e){
-    if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); send(); }
+modelSelect.addEventListener('change', async () => {
+  const selected = modelSelect.value;
+  if (selected === currentModel) return;
+  const form = new FormData();
+  form.append('model', selected);
+  await fetch('?set_model=1', { method: 'POST', body: form });
+  currentModel = selected;
+  updateCurrentModelLabel();
+});
+newBtn.addEventListener('click', async () => {
+  await fetch('?new=1', { method: 'POST' });
+  serverConversation = [];
+  chatBox.innerHTML = '';
+  msgInput.value = '';
+  msgInput.disabled = false;
+  msgInput.focus();
 });
 
-window.onload = ()=>{ renderConversation(); msgInput.focus(); };
-</script></body>
+// --- rendering helpers ---
+function addBubble(role, text){
+  const wr = document.createElement('div');
+  wr.className = 'msg ' + role;
+  const b = document.createElement('div');
+  b.className = 'bubble';
+  b.textContent = text;
+  wr.appendChild(b);
+  chatBox.appendChild(wr);
+  chatBox.scrollTop = chatBox.scrollHeight;
+  return b;
+}
+function renderConversationFromServer(){
+  chatBox.innerHTML = '';
+  for (const m of serverConversation) addBubble(m.role, m.content);
+  chatBox.scrollTop = chatBox.scrollHeight;
+}
+
+// --- streaming send logic ---
+function safeJSONParse(s) {
+  try { return JSON.parse(s); } catch { return undefined; }
+}
+
+async function sendMessage(e){
+  if (e) e.preventDefault();
+  if (sending) return;
+  const msg = msgInput.value.trim();
+  if (!msg) return;
+  sending = true;
+  msgInput.value = '';
+  msgInput.disabled = true;
+
+  // append locally and to visible chat
+  serverConversation.push({ role:'user', content: msg });
+  addBubble('user', msg);
+
+  // assistant bubble to fill while streaming
+  const assistantBubble = addBubble('assistant', '');
+
+  // fetch + stream response
+  try {
+    const res = await fetch('', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: msg })
+    });
+
+    if (!res.body) throw new Error('No response body from server');
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let gotAnyToken = false;
+    let reasoning = false;
+    let reasoningBuffer = '';
+
+    // show a small thinking visual until first token arrives
+    const thinkingElem = document.createElement('span');
+    thinkingElem.className = 'reasoning-anim';
+    thinkingElem.textContent = 'Thinking...';
+    assistantBubble.appendChild(thinkingElem);
+    chatBox.scrollTop = chatBox.scrollHeight;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      // SSE uses blank line as event separator
+      let idx;
+      while ((idx = buffer.indexOf("\n\n")) !== -1) {
+        const block = buffer.slice(0, idx).trim();
+        buffer = buffer.slice(idx + 2);
+        if (!block) continue;
+
+        // parse event block into event type and data lines
+        let eventType = 'message';
+        let dataLines = [];
+        for (const line of block.split("\n")) {
+          if (line.startsWith('event:')) eventType = line.slice(6).trim();
+          else if (line.startsWith('data:')) dataLines.push(line.slice(5).trim());
+        }
+        const dataStr = dataLines.join("\n").trim();
+
+        if (eventType === 'token') {
+          // tokens are JSON-encoded on the server (json_encode($token)), so try parse
+          let token = safeJSONParse(dataStr);
+          if (typeof token === 'undefined') token = dataStr;
+
+          if (!gotAnyToken) {
+            gotAnyToken = true;
+            // remove thinking indicator
+            if (thinkingElem && thinkingElem.parentNode) thinkingElem.parentNode.removeChild(thinkingElem);
+          }
+
+          // handle reasoning blocks
+          if (!reasoning && typeof token === 'string' && token.includes('<think>')) {
+            reasoning = true;
+            token = token.replace('<think>', '');
+            reasoningBuffer = '';
+            // show reasoning element
+            assistantBubble.appendChild(createReasoningAnim('Reasoning...'));
+          }
+
+          if (reasoning) {
+            if (typeof token === 'string' && token.includes('</think>')) {
+              token = token.replace('</think>', '');
+              reasoningBuffer += token;
+              const reasonElem = assistantBubble.querySelector('.reasoning-anim');
+              if (reasonElem) reasonElem.textContent = reasoningBuffer.trim() || 'Reasoning...';
+              // keep reasoning visible briefly then remove
+              setTimeout(() => {
+                const re = assistantBubble.querySelector('.reasoning-anim');
+                if (re && re.parentNode) re.parentNode.removeChild(re);
+              }, 700);
+              reasoning = false;
+            } else {
+              reasoningBuffer += (token || '');
+              const reasonElem = assistantBubble.querySelector('.reasoning-anim');
+              if (reasonElem) reasonElem.textContent = reasoningBuffer.trim() || 'Reasoning...';
+            }
+          } else {
+            // append token text content
+            assistantBubble.textContent += token;
+          }
+          chatBox.scrollTop = chatBox.scrollHeight;
+
+        } else if (eventType === 'done') {
+          // finished streaming; client should append assistant reply to server-side conversation
+          // push local conversation
+          const assistantText = assistantBubble.textContent;
+          serverConversation.push({ role:'assistant', content: assistantText });
+
+          // send to server to persist assistant message in $_SESSION
+          try {
+            await fetch('?append_assistant=1', {
+              method: 'POST',
+              headers: {'Content-Type': 'application/json'},
+              body: JSON.stringify({ content: assistantText })
+            });
+          } catch (err) {
+            console.warn('Failed to update server conversation:', err);
+          }
+
+          // done
+          sending = false;
+          msgInput.disabled = false;
+          msgInput.focus();
+        } else if (eventType === 'error') {
+          // show error
+          assistantBubble.textContent = 'Error: ' + dataStr;
+          sending = false;
+          msgInput.disabled = false;
+          msgInput.focus();
+        }
+      }
+    }
+  } catch (err) {
+    // network or parsing error
+    addBubble('assistant', 'Network error: ' + (err.message || err));
+    sending = false;
+    msgInput.disabled = false;
+    msgInput.focus();
+  }
+}
+
+// small helper to create reasoning animation element
+function createReasoningAnim(text) {
+  const el = document.createElement('span');
+  el.className = 'reasoning-anim';
+  el.textContent = text;
+  return el;
+}
+
+// enter sends
+msgInput.addEventListener('keydown', (ev) => {
+  if (ev.key === 'Enter' && !ev.shiftKey) {
+    ev.preventDefault();
+    sendMessage();
+  }
+});
+
+// initial setup
+populateModelSelect();
+renderConversationFromServer();
+msgInput.focus();
+</script>
+</body>
 </html>
