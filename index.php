@@ -176,15 +176,61 @@ body, #chat-container {
     box-sizing: border-box;
     letter-spacing: 0.02em;
 }
+#chat-header {
+    background: #222635;
+    padding: 0.7em 2vw;
+    font-size: clamp(1.03em, 1vw + 1em, 1.13em);
+    font-weight: bold;
+    border-bottom: 1px solid #24272d;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    min-height: 42px;
+    width: 100%;
+    box-sizing: border-box;
+    letter-spacing: 0.02em;
+    flex-wrap: wrap; /* allows items to stack instead of overflow */
+    gap: 0.4em;
+}
+
 #chat-header .brand {
     color: #68a3ff;
-    font-size: 0.87em;
-    margin-left: 8px;
+    font-size: 0.85em;
+    margin-left: 6px;
+    display: inline-block;
+    max-width: 60vw;             /* prevents text from stretching too wide */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: middle;
 }
+
 #chat-header .header-controls {
     display: flex;
-    gap: 1vw;
+    gap: 0.5em;
     align-items: center;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    width: auto;
+}
+
+@media (max-width: 600px) {
+    #chat-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.6em;
+    }
+
+    #chat-header .header-controls {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    #chat-header .brand {
+        max-width: 100%;
+        white-space: normal; /* allow wrapping instead of truncating on small screens */
+        text-overflow: unset;
+    }
 }
 #new-btn {
     background: #68a3ff;
