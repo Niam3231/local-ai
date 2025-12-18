@@ -280,14 +280,21 @@ async function sendMessage(e){
   msgInput.value = '';
   msgInput.disabled = true;
 
-  // append locally and to visible chat
+  // append user message locally & to chat
   serverConversation.push({ role:'user', content: msg });
   addBubble('user', msg);
 
   // assistant bubble to fill while streaming
   const assistantBubble = addBubble('assistant', '');
 
-  // fetch + stream response
+  // Add a loading message immediately:
+  const loadingSpan = document.createElement('span');
+  loadingSpan.style.fontStyle = 'italic';
+  loadingSpan.style.opacity = '0.7';
+  loadingSpan.textContent = 'Preparing response...';
+  assistantBubble.appendChild(loadingSpan);
+  chatBox.scrollTop = chatBox.scrollHeight;
+
   try {
     const res = await fetch('', {
       method: 'POST',
@@ -304,26 +311,17 @@ async function sendMessage(e){
     let reasoning = false;
     let reasoningBuffer = '';
 
-    // show a small thinking visual until first token arrives
-    const thinkingElem = document.createElement('span');
-    thinkingElem.className = 'reasoning-anim';
-    thinkingElem.textContent = 'Thinking...';
-    assistantBubble.appendChild(thinkingElem);
-    chatBox.scrollTop = chatBox.scrollHeight;
-
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
       buffer += decoder.decode(value, { stream: true });
 
-      // SSE uses blank line as event separator
       let idx;
       while ((idx = buffer.indexOf("\n\n")) !== -1) {
         const block = buffer.slice(0, idx).trim();
         buffer = buffer.slice(idx + 2);
         if (!block) continue;
 
-        // parse event block into event type and data lines
         let eventType = 'message';
         let dataLines = [];
         for (const line of block.split("\n")) {
@@ -333,22 +331,20 @@ async function sendMessage(e){
         const dataStr = dataLines.join("\n").trim();
 
         if (eventType === 'token') {
-          // tokens are JSON-encoded on the server (json_encode($token)), so try parse
           let token = safeJSONParse(dataStr);
           if (typeof token === 'undefined') token = dataStr;
 
           if (!gotAnyToken) {
             gotAnyToken = true;
-            // remove thinking indicator
-            if (thinkingElem && thinkingElem.parentNode) thinkingElem.parentNode.removeChild(thinkingElem);
+            // Remove loading message on first token
+            if (loadingSpan && loadingSpan.parentNode) loadingSpan.parentNode.removeChild(loadingSpan);
           }
 
-          // handle reasoning blocks
+          // Reasoning logic unchanged...
           if (!reasoning && typeof token === 'string' && token.includes('<think>')) {
             reasoning = true;
             token = token.replace('<think>', '');
             reasoningBuffer = '';
-            // show reasoning element
             assistantBubble.appendChild(createReasoningAnim('Reasoning...'));
           }
 
@@ -358,7 +354,6 @@ async function sendMessage(e){
               reasoningBuffer += token;
               const reasonElem = assistantBubble.querySelector('.reasoning-anim');
               if (reasonElem) reasonElem.textContent = reasoningBuffer.trim() || 'Reasoning...';
-              // keep reasoning visible briefly then remove
               setTimeout(() => {
                 const re = assistantBubble.querySelector('.reasoning-anim');
                 if (re && re.parentNode) re.parentNode.removeChild(re);
@@ -370,18 +365,13 @@ async function sendMessage(e){
               if (reasonElem) reasonElem.textContent = reasoningBuffer.trim() || 'Reasoning...';
             }
           } else {
-            // append token text content
             assistantBubble.textContent += token;
           }
           chatBox.scrollTop = chatBox.scrollHeight;
 
         } else if (eventType === 'done') {
-          // finished streaming; client should append assistant reply to server-side conversation
-          // push local conversation
           const assistantText = assistantBubble.textContent;
           serverConversation.push({ role:'assistant', content: assistantText });
-
-          // send to server to persist assistant message in $_SESSION
           try {
             await fetch('?append_assistant=1', {
               method: 'POST',
@@ -392,12 +382,10 @@ async function sendMessage(e){
             console.warn('Failed to update server conversation:', err);
           }
 
-          // done
           sending = false;
           msgInput.disabled = false;
           msgInput.focus();
         } else if (eventType === 'error') {
-          // show error
           assistantBubble.textContent = 'Error: ' + dataStr;
           sending = false;
           msgInput.disabled = false;
@@ -406,7 +394,6 @@ async function sendMessage(e){
       }
     }
   } catch (err) {
-    // network or parsing error
     addBubble('assistant', 'Network error: ' + (err.message || err));
     sending = false;
     msgInput.disabled = false;
