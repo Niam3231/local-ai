@@ -271,6 +271,22 @@ function safeJSONParse(s) {
   try { return JSON.parse(s); } catch { return undefined; }
 }
 
+function typeTextSmoothly(container, text, speed = 30) {
+  return new Promise(resolve => {
+    let i = 0;
+    function type() {
+      if (i < text.length) {
+        container.textContent += text.charAt(i);
+        i++;
+        setTimeout(type, speed);
+      } else {
+        resolve();
+      }
+    }
+    type();
+  });
+}
+
 async function sendMessage(e){
   if (e) e.preventDefault();
   if (sending) return;
@@ -365,7 +381,7 @@ async function sendMessage(e){
               if (reasonElem) reasonElem.textContent = reasoningBuffer.trim() || 'Reasoning...';
             }
           } else {
-            assistantBubble.textContent += token;
+            await typeTextSmoothly(assistantBubble, token, 8);
           }
           chatBox.scrollTop = chatBox.scrollHeight;
 
