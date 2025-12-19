@@ -8,7 +8,8 @@ $OLLAMA_URL = 'http://localhost:11434/api/chat';
 // ----------------- KNOWN MODELS METADATA -----------------
 // Edit/add descriptions here as you get new model IDs
 $MODEL_INFO = [
-    'gemma3:270m'     => ['name'=>'Gemma 3 270m', 'descr'=>"With its low parameters it very dumb. But its very fast, even on phones it generates at the speed of ChatGPT. You could call it a RageBait-AI because it's very dumb.", 'size'=>'292 MB'],
+    'smollm2:135m'     => ['name'=>'SmolLM2 135m', 'descr'=>"Its very dumb. But extremely fast, even on phones it generates at the speed of 2 times ChatGPT. You could call it a RageBait-AI because it's very dumb.", 'size'=>'271 MB'],
+    'gemma3:270m'     => ['name'=>'Gemma 3 270m', 'descr'=>"With its low parameters it very dumb. But its very fast, even on phones it generates at the speed of ChatGPT.", 'size'=>'292 MB'],
     'qwen3:0.6b'      => ['name'=>'Qwen 3 0.6b', 'descr'=>"With its low parameters it generates fast. But because of its reasoning capability it's not dumb and can detect differences between different subjects.", 'size'=>'523 MB'],
     'deepseek-r1:1.5b'=> ['name'=>'DeepSeek R1 1.5b', 'descr'=>"For low-end Laptops/PC even phones. It's a bit smarter than Qwen 3 0.6 and slower. But can also reason.", 'size'=>'1.1 GB'],
     'gemma3:4b'       => ['name'=>'Gemma 3 4b', 'descr'=>"Despite its high parameters it can run on a single GPU in many configs—very capable.", 'size'=>'3.3 GB'],
