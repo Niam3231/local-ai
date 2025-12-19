@@ -37,6 +37,7 @@ sleep 1
 
 # ---- MODEL SELECTION SECTION ----
 MODEL_CATALOG=(
+'smollm2:135m|Gemma 3 270m|Extremely fast but not very smart.|271 MB'
 'gemma3:270m|Gemma 3 270m|Very fast but not very smart.|292 MB'
 'qwen3:0.6b|Qwen 3 0.6b|Reasonable and quick.|523 MB'
 'deepseek-r1:1.5b|DeepSeek R1 1.5b|Smarter, a bit slower.|1.1 GB'
